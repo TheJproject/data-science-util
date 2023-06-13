@@ -22,7 +22,7 @@ from src.features.features_class import (  # replace 'your_module' with the actu
     CustomTargetTransformer,
     FEATURES_MAPPING
 )
-
+#
 @pytest.fixture(scope="session")
 def cfg():
     with initialize(config_path="../.."):
