@@ -7,10 +7,20 @@
 ![Stochastic Parrot](docs/stable-diffusion-xl.jpeg)
 <br/>*“Racoon, flat design, vector art” — [Stable Diffusion XL](https://clipdrop.co/stable-diffusion)*
 
-![Code Coverage]()
-## News
 
-*April 28, 2023*
+
+### To-do list
+
+- [ ] Add NAS script
+- [ ] Add PCA in feature engineering
+
+    #### Nice to have
+
+- [ ] github action
+- [ ] coverage on github
+- [ ] make official releases
+- [ ] improve quality of life
+- [ ] Comet Haley
 
 
 ### Table of Contents
