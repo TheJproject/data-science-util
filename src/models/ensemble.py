@@ -13,7 +13,7 @@ import pickle
 from sklearn.linear_model import LogisticRegression
 
 from sklearn.model_selection import train_test_split,cross_val_predict,cross_val_score
-from sklearn.metrics import accuracy_score, make_scorer, log_loss
+from sklearn.metrics import accuracy_score, make_scorer, log_loss, mean_absolute_error, get_scorer
 from sklearn.ensemble import StackingClassifier,VotingClassifier,VotingRegressor
 
 from omegaconf import DictConfig
@@ -47,7 +47,7 @@ def main(cfg: DictConfig) -> None:
     y_train = train_df_prepared[cfg.target_col]
     y_test = test_df_prepared[cfg.target_col]
 
-
+    print(X_train.info())
 
     base_estimators = []
     
@@ -70,10 +70,13 @@ def main(cfg: DictConfig) -> None:
     joblib.dump(stacking_classifier, model_path)
 
     # Test the stacking classifier
-    log_loss_scorer = make_scorer(log_loss, greater_is_better=False, needs_proba=True)
-    #score = log_loss_scorer(stacking_classifier, X_test, y_test)
+    if cfg.metric == 'rmse':
+        scorer = make_scorer(obj.root_mean_squared_error, greater_is_better=False)
+    else:
+        scorer = get_scorer(cfg.metric)
+    score = scorer(stacking_classifier, X_test, y_test)
     accuracy = stacking_classifier.score(X_test, y_test)
-    print(f'Stacking classifier accuracy: {accuracy}')
+    print(f'Stacking classifier accuracy: {score}')
 
     
 

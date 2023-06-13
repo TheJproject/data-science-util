@@ -1,32 +1,34 @@
 #config.yaml
-problem_type: 'classification'
+competition_name: 'PS3E15'
+problem_type: 'regression'
+metric: 'rmse'
+target_col: 'x_e_out [-]'
 
 preprocessing:
+  imputer:
   test_size: 0.2
-  nsplit: 5
+  nsplit: 10
 
-ensemble_list: ['LGBM','RF', 'XGBoost', 'CatBoost']
+ensemble_list: ['XGBoost'] #,'LGBM','RF', 'CatBoost']
 
-OPTUNA: True
+OPTUNA: False
+
+retrain: True
 
 hypopt:
-  n_trials: 5
+  n_trials: 20
 
-NAS:
+NAS: False
 
 features:
-  no_feature: True
-  custom_feature: False
+  no_feature: False
+  custom_feature: True
   auto_feature: False
   ext_feature: False
 
 random_state: 42
-
-target_col: 'Class'
-
-selected_model: '2023-03-28-20-23-28'
-
-data_dir: 'data/'
+selected_model: '2023-05-21-15-49-24'
+data_dir: '../data/'
 model_dir: 'models/'
 input_filepath: 
 output_filepath: 

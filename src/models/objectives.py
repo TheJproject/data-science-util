@@ -1,7 +1,7 @@
 import xgboost as xgb
 import lightgbm as lgb
 import catboost
-from sklearn.metrics import accuracy_score, cohen_kappa_score,log_loss
+from sklearn.metrics import accuracy_score, cohen_kappa_score,log_loss, get_scorer, make_scorer,mean_squared_error
 from sklearn.model_selection import KFold
 from sklearn.ensemble import RandomForestClassifier,AdaBoostClassifier,RandomForestRegressor
 from sklearn.linear_model import LogisticRegression, Lasso
@@ -9,25 +9,38 @@ import xgboost as xgb
 import lightgbm as lgb
 import hydra
 import optuna
+import numpy as np
+from optuna.integration.wandb import WeightsAndBiasesCallback
+
 from omegaconf import DictConfig
+#Additional Scorer
+
+def root_mean_squared_error(y_true, y_pred):
+    mse = mean_squared_error(y_true, y_pred,squared=False)
+    return -mse
 
 # Classifier
 class ObjectiveRF:
-    def __init__(self, kfold,X,y):
+    def __init__(self, kfold, X, y, metric, random_state):
         self.kfold = kfold
         self.X = X
         self.y = y
-
+        if metric == 'rmse':
+            self.scorer = make_scorer(root_mean_squared_error(), greater_is_better=False)
+        else:
+            self.scorer = get_scorer(metric)
+        self.random_state = random_state
+        
     def __call__(self, trial):        
         params = {
         'n_estimators': trial.suggest_int('n_estimators', 10, 100),
-        'criterion': trial.suggest_categorical('criterion', ['log_loss','gini', 'entropy']),
+        'criterion': trial.suggest_categorical('criterion', ['gini', 'entropy']),
         'max_depth': trial.suggest_int('max_depth', 2, 20),
         'min_samples_split': trial.suggest_int('min_samples_split', 2, 10),
         'min_samples_leaf': trial.suggest_int('min_samples_leaf', 1, 10),
         'max_features': trial.suggest_categorical('max_features', ['sqrt', 'log2']),
         'bootstrap': trial.suggest_categorical('bootstrap', [True, False]),
-        'random_state': 42
+        'random_state': self.random_state
     }
         optuna_model = RandomForestClassifier(**params)
         scores = []
@@ -40,8 +53,7 @@ class ObjectiveRF:
 
             # Train model
             optuna_model.fit(X_train,y_train)
-            val_preds = optuna_model.predict_proba(X_val)
-            score = log_loss(y_val, val_preds)
+            score = self.scorer(optuna_model, X_val, y_val)
             print(score)
             scores.append(score)
 
@@ -53,10 +65,15 @@ class ObjectiveRF:
         return best_model
 
 class ObjectiveCatBoost:
-    def __init__(self, kfold, X, y):
+    def __init__(self, kfold, X, y, metric, random_state):
         self.kfold = kfold
         self.X = X
         self.y = y
+        if metric == 'rmse':
+            self.scorer = make_scorer(root_mean_squared_error, greater_is_better=False)
+        else:
+            self.scorer = get_scorer(metric)
+        self.random_state = random_state
 
     def __call__(self, trial):
         params = {
@@ -83,8 +100,7 @@ class ObjectiveCatBoost:
 
             # Train CatBoost model
             optuna_model.fit(X_train, y_train)
-            val_preds = optuna_model.predict_proba(X_val)
-            score = log_loss(y_val, val_preds)
+            score = self.scorer(optuna_model, X_val, y_val)
             print(score)
             scores.append(score)
 
@@ -96,15 +112,20 @@ class ObjectiveCatBoost:
         return best_model
     
 class ObjectiveXGB:
-    def __init__(self, kfold,X,y):
+    def __init__(self, kfold, X, y, metric, random_state):
         self.kfold = kfold
         self.X = X
         self.y = y
+        if metric == 'rmse':
+            self.scorer = make_scorer(root_mean_squared_error, greater_is_better=False)
+        else:
+            self.scorer = get_scorer(metric)
+        self.random_state = random_state
 
     def __call__(self, trial):        
         params = {
             'objective': 'binary:logistic',
-            'eval_metric': 'logloss',
+            'eval_metric': 'rmse',
             'booster': 'gbtree',
             'tree_method': 'exact',
             'eta': trial.suggest_float('eta', 1e-5, 1, log=True),
@@ -129,8 +150,7 @@ class ObjectiveXGB:
 
             # Train XGBoost model
             optuna_model.fit(X_train,y_train, verbose=0)
-            val_preds = optuna_model.predict_proba(X_val)
-            score = log_loss(y_val, val_preds)
+            score = self.scorer(optuna_model, X_val, y_val)
             print(score)
             scores.append(score)
 
@@ -142,10 +162,15 @@ class ObjectiveXGB:
         return best_model
     
 class ObjectiveLGBM:
-    def __init__(self, kfold,X,y):
+    def __init__(self, kfold, X, y, metric, random_state):
         self.kfold = kfold
         self.X = X
         self.y = y
+        if metric == 'rmse':
+            self.scorer = make_scorer(root_mean_squared_error, greater_is_better=False)
+        else:
+            self.scorer = get_scorer(metric)
+        self.random_state = random_state
 
     def __call__(self, trial):        
         params = {
@@ -158,7 +183,7 @@ class ObjectiveLGBM:
             'bagging_fraction': trial.suggest_uniform('bagging_fraction', 0.1, 1.0),
             'bagging_freq': trial.suggest_int('bagging_freq', 1, 10),
             'min_child_samples': trial.suggest_int('min_child_samples', 1, 100),
-            'random_state': 42,
+            'random_state': self.random_state,
             'verbose': -1,
         }
         optuna_model = lgb.LGBMClassifier(**params)
@@ -172,8 +197,7 @@ class ObjectiveLGBM:
 
             # Train XGBoost model
             optuna_model.fit(X_train,y_train, verbosity=0)
-            val_preds = optuna_model.predict_proba(X_val)
-            score = log_loss(y_val, val_preds)
+            score = self.scorer(optuna_model, X_val, y_val)
             print(score)
             scores.append(score)
         
@@ -186,21 +210,26 @@ class ObjectiveLGBM:
 
 #Regressor 
 class ObjectiveRFRegressor:
-    def __init__(self, kfold, X, y):
+    def __init__(self, kfold, X, y, metric, random_state):
         self.kfold = kfold
         self.X = X
         self.y = y
+        if metric == 'rmse':
+            self.scorer = make_scorer(root_mean_squared_error, greater_is_better=False)
+        else:
+            self.scorer = get_scorer(metric)
+        self.random_state = random_state
 
     def __call__(self, trial):        
         params = {
             'n_estimators': trial.suggest_int('n_estimators', 10, 100),
-            'criterion': trial.suggest_categorical('criterion', ['squared_error', 'poisson']),
+            'criterion': trial.suggest_categorical('criterion', ['squared_error']),
             'max_depth': trial.suggest_int('max_depth', 2, 20),
             'min_samples_split': trial.suggest_int('min_samples_split', 2, 10),
             'min_samples_leaf': trial.suggest_int('min_samples_leaf', 1, 10),
-            'max_features': trial.suggest_categorical('max_features', ['auto', 'sqrt', 'log2']),
+            'max_features': trial.suggest_categorical('max_features', ['sqrt', 'log2']),
             'bootstrap': trial.suggest_categorical('bootstrap', [True, False]),
-            'random_state': 42
+            'random_state': self.random_state
         }
         optuna_model = RandomForestRegressor(**params)
         scores = []
@@ -212,8 +241,7 @@ class ObjectiveRFRegressor:
 
             # Train RandomForest model
             optuna_model.fit(X_train, y_train)
-            val_preds = optuna_model.predict(X_val)
-            score = log_loss(y_val, val_preds)
+            score = self.scorer(optuna_model, X_val, y_val)
             print(score)
             scores.append(score)
 
@@ -225,10 +253,15 @@ class ObjectiveRFRegressor:
         return best_model
 
 class ObjectiveCatBoostRegressor:
-    def __init__(self, kfold, X, y):
+    def __init__(self, kfold, X, y, metric, random_state):
         self.kfold = kfold
         self.X = X
         self.y = y
+        if metric == 'rmse':
+            self.scorer = make_scorer(root_mean_squared_error, greater_is_better=False)
+        else:
+            self.scorer = get_scorer(metric)
+        self.random_state = random_state
 
     def __call__(self, trial):
         params = {
@@ -255,8 +288,7 @@ class ObjectiveCatBoostRegressor:
 
             # Train CatBoost model
             optuna_model.fit(X_train, y_train)
-            val_preds = optuna_model.predict(X_val)
-            score = log_loss(y_val, val_preds)
+            score = self.scorer(optuna_model, X_val, y_val)
             print(score)
             scores.append(score)
 
@@ -268,19 +300,25 @@ class ObjectiveCatBoostRegressor:
         return best_model
 
 class ObjectiveXGBRegressor:
-    def __init__(self, kfold, X, y):
+    def __init__(self, kfold, X, y, metric, random_state):
         self.kfold = kfold
         self.X = X
         self.y = y
+        if metric == 'rmse':
+            self.scorer = make_scorer(root_mean_squared_error, greater_is_better=False)
+        else:
+            self.scorer = get_scorer(metric)
+        self.random_state = random_state
 
     def __call__(self, trial):        
         params = {
+            'n_estimators' : trial.suggest_int('n_estimators', 80, 400),
             'objective': 'reg:squarederror',
             'eval_metric': 'rmse',
             'booster': 'gbtree',
             'tree_method': 'exact',
             'eta': trial.suggest_float('eta', 1e-5, 1, log=True),
-            'max_depth': trial.suggest_int('max_depth', 1, 20),
+            'max_depth': trial.suggest_int('max_depth', 2, 20),
             'subsample': trial.suggest_float('subsample', 0.1, 1),
             'colsample_bytree': trial.suggest_float('colsample_bytree', 0.1, 1),
             'gamma': trial.suggest_float('gamma', 0, 10),
@@ -300,9 +338,8 @@ class ObjectiveXGBRegressor:
 
             # Train XGBoost model
             optuna_model.fit(X_train, y_train)
-            val_preds = optuna_model.predict(X_val)
-            score = log_loss(y_val, val_preds)
-            print(score)
+            score = self.scorer(optuna_model, X_val, y_val)
+            #print(score)
             scores.append(score)
 
         return score
@@ -313,10 +350,15 @@ class ObjectiveXGBRegressor:
         return best_model
 
 class ObjectiveLGBMRegressor:
-    def __init__(self, kfold, X, y):
+    def __init__(self, kfold, X, y, metric, random_state):
         self.kfold = kfold
         self.X = X
         self.y = y
+        if metric == 'rmse':
+            self.scorer = make_scorer(root_mean_squared_error, greater_is_better=False)
+        else:
+            self.scorer = get_scorer(metric)
+        self.random_state = random_state
 
     def __call__(self, trial):        
         params = {
@@ -329,7 +371,7 @@ class ObjectiveLGBMRegressor:
             'bagging_fraction': trial.suggest_uniform('bagging_fraction', 0.1, 1.0),
             'bagging_freq': trial.suggest_int('bagging_freq', 1, 10),
             'min_child_samples': trial.suggest_int('min_child_samples', 1, 100),
-            'random_state': 42,
+            'random_state': self.random_state,
             'verbose': -1,
         }
         optuna_model = lgb.LGBMRegressor(**params)
@@ -342,8 +384,7 @@ class ObjectiveLGBMRegressor:
 
             # Train LightGBM model
             optuna_model.fit(X_train, y_train)
-            val_preds = optuna_model.predict(X_val)
-            score = log_loss(y_val, val_preds)
+            score = self.scorer(optuna_model, X_val, y_val)
             print(score)
             scores.append(score)
 
@@ -355,15 +396,19 @@ class ObjectiveLGBMRegressor:
         return best_model
 
 class ObjectiveLassoRegressor:
-    def __init__(self, kfold, X_train, y_train):
+    def __init__(self, kfold, X_train, y_train,metric,random_state):
         self.kfold = kfold
         self.X_train = X_train
         self.y_train = y_train
+        if metric == 'rmse':
+            self.scorer = make_scorer(root_mean_squared_error, greater_is_better=False)
+        else:
+            self.scorer = get_scorer(metric)
 
     def __call__(self, trial):
         params = {
             'alpha': trial.suggest_loguniform('alpha', 1e-5, 1.0),
-            'random_state': 42
+            'random_state': self.random_state
         }
         optuna_model = Lasso(**params)
         scores = []
@@ -374,7 +419,7 @@ class ObjectiveLassoRegressor:
 
             optuna_model.fit(X_train_cv, y_train_cv)
             val_preds = optuna_model.predict(X_val_cv)
-            score = log_loss(y_val_cv, val_preds)
+            score = self.scorer(y_val_cv, val_preds)
             scores.append(score)
 
         return score
@@ -391,8 +436,8 @@ class MyOptimizer:
         self.direction = direction
         self.study = optuna.create_study(direction=direction)
 
-    def optimize(self, n_trials):
-        self.study.optimize(self.objective, n_trials=n_trials)
+    def optimize(self, n_trials, callbacks=None):
+        self.study.optimize(self.objective, n_trials=n_trials, callbacks=callbacks)
         
     def best_params(self):
         return self.study.best_params

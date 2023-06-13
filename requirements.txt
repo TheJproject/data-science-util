@@ -23,4 +23,8 @@ imbalanced-learn
 catboost
 torch
 torchvision
+tensorboard
 kaleido
+nni
+pytorch-lightning  
+pytest

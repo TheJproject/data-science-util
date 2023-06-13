@@ -28,11 +28,11 @@ requirements: test_environment
 
 ## Make Dataset
 data: requirements
-	$(PYTHON_INTERPRETER) src/data/make_dataset.py data/raw/test.csv data/processed/test.feather
+	$(PYTHON_INTERPRETER) src/data/make_dataset.py data/raw/test.csv data/cleaned/test.feather
 
 ## Make Features
 feature: requirements
-	$(PYTHON_INTERPRETER) src/features/build_features.py 
+	$(PYTHON_INTERPRETER) src/features/build_features2.py 
 
 ## Train Dataset
 train: requirements
@@ -47,12 +47,14 @@ predict: requirements
 	$(PYTHON_INTERPRETER) src/models/predict_model.py 
 
 ## NASWOT 
-nas: requirements
+naswot: requirements
 	$(PYTHON_INTERPRETER) src/models/naswot_train.py 
 ## Submit Results 
 
+
+
 kaggle_submit: requirements
-	$ kaggle competitions submit -c playground-series-s3e10 -f data/submission/submission.csv -m "Message"
+	$ kaggle competitions submit -c playground-series-s3e15 -f data/submission/submission.csv -m "Message"
 ## Delete all compiled Python files
 clean:
 	find . -type f -name "*.py[co]" -delete

@@ -1,7 +1,56 @@
-data-science-util
-==============================
+# The Data Science Util 
+[![Latest release](https://img.shields.io/github/v/release/TheJproject/data-science-util?label=Latest%20release&style=social)](https://github.com/TheJproject/data-science-util/releases/tag/v1.0.0)
+[![Stars](https://img.shields.io/github/stars/TheJproject/data-science-util?style=social)](https://github.com/TheJproject/data-science-util/stargazers)
+[![Fork](https://img.shields.io/github/forks/TheJproject/data-science-util?style=social)](https://github.com/TheJproject/data-science-util/network/members)
+[![Watchers](https://img.shields.io/github/watchers/TheJproject/data-science-util?style=social)](https://github.com/TheJproject/data-science-util/watchers)
 
-A kaggle util to do autoML and Meta-learning
+![Stochastic Parrot](docs/stable-diffusion-xl.jpeg)
+<br/>*“Racoon, flat design, vector art” — [Stable Diffusion XL](https://clipdrop.co/stable-diffusion)*
+
+![Code Coverage]()
+## News
+
+*April 28, 2023*
+
+
+### Table of Contents
+
+1. [Introduction](#introduction)
+2. [Getting Started](#getting-started)
+3. [Installation](#installation)
+4. [Usage](#usage)
+5. [Contributing](#contributing)
+6. [License](#license)
+7. [Contact](#contact)
+
+## Introduction
+
+The "Data Science Utils" project aims to provide a collection of data science utilities for managing and processing datasets. Based on the cookiecutter data science template, it follows a standardized structure for organizing data science projects that separates code, data, and results, making the work easy to understand and reproduce. The main idea behind this structure is to separate the code, data, and results, and make it easy for others to understand and reproduce the work.
+
+The project is structured following the Makefile pattern, allowing for automated execution of different stages of the project. The Makefile contains a set of rules defining dependencies and actions for each step. The user can simply execute the make command with the desired target to trigger the corresponding rule.
+
+The general workflow of the program is as follows:
+
+1. **Data preprocessing:** The raw data is preprocessed and cleaned, preparing it for feature engineering and modeling (`make data`).
+2. **Feature engineering:** The cleaned data is transformed into a set of features for modeling (`make feature`).
+3. **Model training:** The engineered features are used to train a model to predict the target variable (`make train`).
+4. **Model ensembling:** Multiple models are combined to improve overall performance (`make ensemble`).
+5. **Prediction:** The trained models are used to make predictions on new data (`make predict`).
+6. **Kaggle submission:** The predicted values are submitted to the Kaggle competition (`make kaggle_submit`).
+
+The program is designed to be flexible and customizable. Users can modify the configuration file to adjust the parameters of each step, add custom features or external data, and use different models and ensembling techniques. It can be installed as a package using the pip command, and users can start a new project by running the cookiecutter command with the desired options.
+
+## Getting Started
+
+These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
+
+### Prerequisites
+
+Python3 and the following Python libraries are required for this software. Make sure to install them.
+
+```bash
+pip install -r requirements.txt
+```
 
 Project Organization
 ------------
