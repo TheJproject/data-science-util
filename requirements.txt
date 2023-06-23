@@ -25,6 +25,8 @@ torch
 torchvision
 tensorboard
 kaleido
+kaggle
 nni
 pytorch-lightning  
 pytest
+pyyaml

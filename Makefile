@@ -9,7 +9,8 @@ BUCKET = [OPTIONAL] your-bucket-for-syncing-data (do not include 's3://')
 PROFILE = default
 PROJECT_NAME = data-science-util
 PYTHON_INTERPRETER = python3
-
+KAGGLE_USERNAME= "jonahtabbal"
+KAGGLE_KEY= "7b3a3900f1d03c0b9ef7fe2e83d8a224"
 ifeq (,$(shell which conda))
 HAS_CONDA=False
 else
@@ -17,6 +18,9 @@ HAS_CONDA=True
 endif
 
 HYDRA_FULL_ERROR=1
+
+competition_name := $(shell python -c 'import yaml;print(yaml.safe_load(open("config.yaml"))["competition_name"])')
+
 #################################################################################
 # COMMANDS                                                                      #
 #################################################################################
@@ -28,7 +32,10 @@ requirements: test_environment
 
 ## Make Dataset
 data: requirements
-	$(PYTHON_INTERPRETER) src/data/make_dataset.py data/raw/test.csv data/cleaned/test.feather
+	mkdir -p data/raw/$(competition_name)
+	mkdir -p data/cleaned/$(competition_name)
+	$(PYTHON_INTERPRETER) src/data/make_dataset.py data/raw/$(competition_name)/train.csv data/cleaned/$(competition_name)/train.feather
+	$(PYTHON_INTERPRETER) src/data/make_dataset.py data/raw/$(competition_name)/test.csv data/cleaned/$(competition_name)/test.feather
 
 ## Make Features
 feature: requirements
@@ -54,7 +61,11 @@ naswot: requirements
 
 
 kaggle_submit: requirements
-	$ kaggle competitions submit -c playground-series-s3e15 -f data/submission/submission.csv -m "Message"
+	$ kaggle competitions submit -c $(competition_name) -f data/submission/$(competition_name)/submission.csv -m "Message"
+
+kaggle_download: requirements
+	$ kaggle competitions download -c $(competition_name) -f data/raw/$(competition_name)
+
 ## Delete all compiled Python files
 clean:
 	find . -type f -name "*.py[co]" -delete

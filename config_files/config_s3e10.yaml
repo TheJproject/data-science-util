@@ -1,15 +1,15 @@
 #config.yaml
 competition_name: 'playground-series-s3e17'
 problem_type: 'classification'
-metric: 'accuracy_score'
+metric: 'neg_log_loss'
 direction: 'maximize'
-target_col: 'Machine failure'
+target_col: 'Class'
 
 preprocessing:
   imputer:
   test_size: 0.2
   nsplit: 5
-  drop_columns: ['Product ID'] #None if no column dropped
+
 ensemble_list: ['XGBoost','RF', 'CatBoost','LGBM']
 
 OPTUNA: True
@@ -23,7 +23,7 @@ NAS: False
 
 features:
   no_feature: False
-  custom_feature: False
+  custom_feature: True
   auto_feature: True
   ext_feature: False
   pca_feature: False

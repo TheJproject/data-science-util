@@ -12,24 +12,10 @@ from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 
 from sklearn.inspection import permutation_importance
 
-class FeatureNoTransform():
-    def __init__(self, data_path):
-        self.data = feather.read_feather(data_path)
-    def transform(self):
-        df = self.data
-        pass
-
-class AutoFeatureTransform():
-    def __init__(self, data):
-        self.data = data
-
-    def transform(self, method):
-        pass
-
 class AutoFeatureTransform(BaseEstimator, TransformerMixin):
     def __init__(self, problem_type, **kwargs):
         self.problem_type = problem_type
-        self.n_features = 5
+        self.n_features = 1
         self.indices = None
         self.poly = PolynomialFeatures(2, interaction_only=True, include_bias=False)
 
@@ -72,18 +58,35 @@ class AutoFeatureTransform(BaseEstimator, TransformerMixin):
         
         # Create a DataFrame for the transformed data
         new_data = pd.DataFrame(X_poly[:, interaction_feature_indices], columns=interaction_feature_names)
-        
-        print("Type X-poly :" + str(type(X_poly)))
+        data_with_new_features = pd.concat([X, new_data], axis=1)
+        print("Type X-poly :" + str(type(data_with_new_features)))
         
         return new_data
 
     def transform(self, X):
         new_data = self._generate_features(X, fit=False)
         selected_columns = new_data.columns[self.indices]
+        #new_data = new_data.reindex(X.index)
+        # print head of new data and X
+        print("Head of new data: " + str(new_data.head()))
+        print("Head of X: " + str(X.head()))
+
+
+
+        print("Shape of new data: " + str(new_data.shape))
+        print("Shape of X: " + str(X.shape))
+        X.reset_index(drop=True, inplace=True)
+        new_data.reset_index(drop=True, inplace=True)
+        return pd.concat([X, new_data[selected_columns]], axis=1)
         return new_data[selected_columns]
+        #return new_data[selected_columns]
     
     def get_transformed_columns(self):
         return self.column_names_
+    
+    def set_output(self, transform="passthrough"):
+        self.output_transform = transform
+        return self
 
 class ExternalFeatureTemplate(BaseEstimator, TransformerMixin):
     def __init__(self, **kwargs):
@@ -106,53 +109,56 @@ class ExternalFeatureTemplate(BaseEstimator, TransformerMixin):
     def get_transformed_columns(self):
         return self.column_names_
     
-class CustomFeatureTransform(BaseEstimator, TransformerMixin):
-    def __init__(self, X,apply_smote=True):
-        self.apply_smote = apply_smote
-        self.smote = SMOTE(random_state=42)
+
+from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from sklearn.inspection import permutation_importance
+from sklearn.base import BaseEstimator, TransformerMixin
+import pandas as pd
+
+class PCATransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, problem_type, n_components=2, **kwargs):
+        self.problem_type = problem_type
+        self.n_components = n_components
+        self.indices = None
+        self.pca = PCA(n_components=self.n_components)
 
     def fit(self, X, y=None):
-        if self.apply_smote and y is not None:
-            self.smote.fit_resample(X, y)
-        
+        new_data = self._generate_features(X, fit=True)
+        if self.problem_type == 'regression':
+            model = RandomForestRegressor()
+        elif self.problem_type == 'classification':
+            model = RandomForestClassifier()
+        else:
+            raise ValueError('Problem_type should be either regression or classification. Check the value in the config file')
+
+        model.fit(new_data, y)
+        print("Finding the best features...")
+        result = permutation_importance(model, new_data, y, n_repeats=2, random_state=0)
+
+        self.indices = result.importances_mean.argsort()[::-1][:self.n_components]
+        self.column_names_ = new_data.columns[self.indices].tolist()
+
         return self
-    
-class CustomFeatureTransformFS(BaseEstimator, TransformerMixin):
-    def __init__(self):
-        self.FEATS = []
 
-    def fit(self, X, y=None):
-        feat = X.columns.tolist()
-        self.FEATS.extend(feat)
-        return self
+    def _generate_features(self, X, fit=False):
+        print("Applying PCA...")
+        if fit:
+            self.pca.fit(X)
+        new_data_pca = self.pca.transform(X)
 
-    def transform(self, X, y=None):
-        print(X)
-        feat = X.columns.tolist()
-        print("len of feat inside trasnform :" + str(len(feat)))
-        X = X.copy()
-        X['Mean_Integrated_x_SD'] = X['Mean_Integrated'] * X['SD']
-        #for feat1, feat2 in combinations(self.INIT_FEATS, 2):
-        #    X[f'{feat1}_x_{feat2}'] = X[f'{feat1}'] * X[f'{feat2}']
-        #    X[f'{feat1}_+_{feat2}'] = X[f'{feat1}'] + X[f'{feat2}']
-        #    X[f'{feat1}_>_{feat2}'] = X[f'{feat1}'] > X[f'{feat2}']
-        print("shape of X inside transform:" + str(X.shape))
-        for new_feat in ['Mean_Integrated_x_SD']:
-            if new_feat not in self.FEATS:
-                self.FEATS.extend([new_feat])
-        return X
+        new_data = pd.DataFrame(new_data_pca, columns=[f"PC_{i+1}" for i in range(self.n_components)])
+        return new_data
 
-    def get_feature_names_out(self):
-        return self.FEATS
+    def transform(self, X):
+        new_data = self._generate_features(X, fit=False)
+        selected_columns = new_data.columns[self.indices]
+        return new_data[selected_columns]
+
+    def get_transformed_columns(self):
+        return self.column_names_
 
         
-class ExternalFeatureTransform():
-    def __init__(self, data):
-        self.data = data
-
-    def transform(self, method):
-        pass
-
 class CustomTargetTransformer(BaseEstimator, TransformerMixin):
     def __init__(self):
         self.encoder = LabelEncoder()
@@ -179,9 +185,8 @@ class CustomTargetTransformer(BaseEstimator, TransformerMixin):
             return y
         
 
-def no_feature(data):
-    # transformation code
-    pass
+def no_feature(df):
+    return df
 
 
 def custom_feature(df):
@@ -193,14 +198,18 @@ def custom_feature(df):
     length: Length
     chf_exp: Critical heat flux in experiments
     """
+
+    # transformation code
+
+    #df['SD x EK'] = df['SD'] * df['EK']
     # Mass flux and length product
     # df['mass_length_product'] = df['mass_flux'] * df['length']
     
     # Adiabatic surface area
-    df['adiabatic_surface_area'] = df['D_e'] * df['length']
+    #df['adiabatic_surface_area'] = df['D_e'] * df['length']
     
     # Surface area to horizontal diameter ratio
-    df['surface_diameter_ratio'] = df['D_e'] / df['D_h']
+    #df['surface_diameter_ratio'] = df['D_e'] / df['D_h']
     
     # Pressure to mass flux ratio
     # df['pressure_flux_ratio'] = df['pressure'] / df['mass_flux']
@@ -210,10 +219,6 @@ def custom_feature(df):
     
     return df
 
-def auto_feature(data):
-    # transformation code
-    pass
-
 def ext_feature(data):
     # transformation code
     pass
@@ -221,6 +226,5 @@ def ext_feature(data):
 FEATURES_MAPPING = {
     "no_feature": no_feature,
     "custom_feature": custom_feature,
-    "auto_feature": auto_feature,
     "ext_feature": ext_feature,
-}
+}   

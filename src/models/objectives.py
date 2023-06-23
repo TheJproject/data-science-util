@@ -11,11 +11,12 @@ import hydra
 import optuna
 import numpy as np
 from optuna.integration.wandb import WeightsAndBiasesCallback
+from sklearn.metrics import SCORERS
 
 from omegaconf import DictConfig
 #Additional Scorer
 
-def root_mean_squared_error(y_true, y_pred):
+def rmse(y_true, y_pred):
     mse = mean_squared_error(y_true, y_pred,squared=False)
     return -mse
 
@@ -25,10 +26,13 @@ class ObjectiveRF:
         self.kfold = kfold
         self.X = X
         self.y = y
-        if metric == 'rmse':
-            self.scorer = make_scorer(root_mean_squared_error(), greater_is_better=False)
-        else:
+        if metric in SCORERS:
             self.scorer = get_scorer(metric)
+        elif metric in globals() and callable(globals()[metric]):
+            self.scorer = make_scorer(globals()[metric], greater_is_better=False)
+        else:
+            # Here you can add more custom scorers if you need
+            raise ValueError(f"Unsupported metric: {metric}")
         self.random_state = random_state
         
     def __call__(self, trial):        
@@ -69,10 +73,13 @@ class ObjectiveCatBoost:
         self.kfold = kfold
         self.X = X
         self.y = y
-        if metric == 'rmse':
-            self.scorer = make_scorer(root_mean_squared_error, greater_is_better=False)
-        else:
+        if metric in SCORERS:
             self.scorer = get_scorer(metric)
+        elif metric in globals() and callable(globals()[metric]):
+            self.scorer = make_scorer(globals()[metric], greater_is_better=False)
+        else:
+            # Here you can add more custom scorers if you need
+            raise ValueError(f"Unsupported metric: {metric}")
         self.random_state = random_state
 
     def __call__(self, trial):
@@ -116,16 +123,19 @@ class ObjectiveXGB:
         self.kfold = kfold
         self.X = X
         self.y = y
-        if metric == 'rmse':
-            self.scorer = make_scorer(root_mean_squared_error, greater_is_better=False)
-        else:
+        if metric in SCORERS:
             self.scorer = get_scorer(metric)
+        elif metric in globals() and callable(globals()[metric]):
+            self.scorer = make_scorer(globals()[metric], greater_is_better=False)
+        else:
+            # Here you can add more custom scorers if you need
+            raise ValueError(f"Unsupported metric: {metric}")
         self.random_state = random_state
 
     def __call__(self, trial):        
         params = {
             'objective': 'binary:logistic',
-            'eval_metric': 'rmse',
+            'eval_metric': 'logloss',
             'booster': 'gbtree',
             'tree_method': 'exact',
             'eta': trial.suggest_float('eta', 1e-5, 1, log=True),
@@ -166,16 +176,19 @@ class ObjectiveLGBM:
         self.kfold = kfold
         self.X = X
         self.y = y
-        if metric == 'rmse':
-            self.scorer = make_scorer(root_mean_squared_error, greater_is_better=False)
-        else:
+        if metric in SCORERS:
             self.scorer = get_scorer(metric)
+        elif metric in globals() and callable(globals()[metric]):
+            self.scorer = make_scorer(globals()[metric], greater_is_better=False)
+        else:
+            # Here you can add more custom scorers if you need
+            raise ValueError(f"Unsupported metric: {metric}")
         self.random_state = random_state
 
     def __call__(self, trial):        
         params = {
             'objective': 'binary',
-            'metric': 'binary_logloss',
+            'metric': 'logloss',
             'boosting_type': 'gbdt',
             'num_leaves': trial.suggest_int('num_leaves', 2, 256),
             'learning_rate': trial.suggest_loguniform('learning_rate', 0.001, 0.1),
@@ -196,7 +209,7 @@ class ObjectiveLGBM:
             
 
             # Train XGBoost model
-            optuna_model.fit(X_train,y_train, verbosity=0)
+            optuna_model.fit(X_train,y_train)
             score = self.scorer(optuna_model, X_val, y_val)
             print(score)
             scores.append(score)
@@ -214,10 +227,13 @@ class ObjectiveRFRegressor:
         self.kfold = kfold
         self.X = X
         self.y = y
-        if metric == 'rmse':
-            self.scorer = make_scorer(root_mean_squared_error, greater_is_better=False)
-        else:
+        if metric in SCORERS:
             self.scorer = get_scorer(metric)
+        elif metric in globals() and callable(globals()[metric]):
+            self.scorer = make_scorer(globals()[metric], greater_is_better=False)
+        else:
+            # Here you can add more custom scorers if you need
+            raise ValueError(f"Unsupported metric: {metric}")
         self.random_state = random_state
 
     def __call__(self, trial):        
@@ -257,17 +273,20 @@ class ObjectiveCatBoostRegressor:
         self.kfold = kfold
         self.X = X
         self.y = y
-        if metric == 'rmse':
-            self.scorer = make_scorer(root_mean_squared_error, greater_is_better=False)
-        else:
+        if metric in SCORERS:
             self.scorer = get_scorer(metric)
+        elif metric in globals() and callable(globals()[metric]):
+            self.scorer = make_scorer(globals()[metric], greater_is_better=False)
+        else:
+            # Here you can add more custom scorers if you need
+            raise ValueError(f"Unsupported metric: {metric}")
         self.random_state = random_state
 
     def __call__(self, trial):
         params = {
             'task_type': 'CPU',
-            'loss_function': 'RMSE',
-            'eval_metric': 'RMSE',
+            'loss_function': 'Logloss',
+            'eval_metric': 'Logloss',
             'iterations': 1000,
             'learning_rate': trial.suggest_float('learning_rate', 1e-5, 1, log=True),
             'depth': trial.suggest_int('depth', 1, 10),
@@ -304,17 +323,20 @@ class ObjectiveXGBRegressor:
         self.kfold = kfold
         self.X = X
         self.y = y
-        if metric == 'rmse':
-            self.scorer = make_scorer(root_mean_squared_error, greater_is_better=False)
-        else:
+        if metric in SCORERS:
             self.scorer = get_scorer(metric)
+        elif metric in globals() and callable(globals()[metric]):
+            self.scorer = make_scorer(globals()[metric], greater_is_better=False)
+        else:
+            # Here you can add more custom scorers if you need
+            raise ValueError(f"Unsupported metric: {metric}")
         self.random_state = random_state
 
     def __call__(self, trial):        
         params = {
             'n_estimators' : trial.suggest_int('n_estimators', 80, 400),
             'objective': 'reg:squarederror',
-            'eval_metric': 'rmse',
+            'eval_metric': 'logloss',
             'booster': 'gbtree',
             'tree_method': 'exact',
             'eta': trial.suggest_float('eta', 1e-5, 1, log=True),
@@ -354,16 +376,19 @@ class ObjectiveLGBMRegressor:
         self.kfold = kfold
         self.X = X
         self.y = y
-        if metric == 'rmse':
-            self.scorer = make_scorer(root_mean_squared_error, greater_is_better=False)
-        else:
+        if metric in SCORERS:
             self.scorer = get_scorer(metric)
+        elif metric in globals() and callable(globals()[metric]):
+            self.scorer = make_scorer(globals()[metric], greater_is_better=False)
+        else:
+            # Here you can add more custom scorers if you need
+            raise ValueError(f"Unsupported metric: {metric}")
         self.random_state = random_state
 
     def __call__(self, trial):        
         params = {
             'objective': 'regression',
-            'metric': 'rmse',
+            'metric': 'logloss',
             'boosting_type': 'gbdt',
             'num_leaves': trial.suggest_int('num_leaves', 2, 256),
             'learning_rate': trial.suggest_loguniform('learning_rate', 0.001, 0.1),
@@ -431,7 +456,7 @@ class ObjectiveLassoRegressor:
 
 
 class MyOptimizer:
-    def __init__(self, objective, direction='minimize'):
+    def __init__(self, objective, direction):
         self.objective = objective
         self.direction = direction
         self.study = optuna.create_study(direction=direction)

@@ -28,14 +28,16 @@ from presaved_param import model_dict as presaved_dict
 print(optuna.__version__)
 
 log = logging.getLogger(__name__)
-wandb.init()
-wandb_kwargs = {"project": "data-science-util_TRAIN_MODEL"}
+
+
 
 @hydra.main(config_path="../..",config_name="config")
 def main(cfg: DictConfig) -> None:
+    wandb.init()
+    wandb_kwargs = {"project": cfg.competition_name}
     working_dir = os.getcwd()
     data_dir = hydra.utils.to_absolute_path(cfg.data_dir)
-    data_path = os.path.join(data_dir, 'processed/train_prepared.feather')
+    data_path = os.path.join(data_dir, f'processed/{cfg.competition_name}/train_prepared.feather')
 
     model_dir = hydra.utils.to_absolute_path(cfg.model_dir)
     print(f"The current working directory for data is {data_dir}")
@@ -93,7 +95,7 @@ def main(cfg: DictConfig) -> None:
 
         for i, (name, model) in enumerate(models.items()):
             wandbc = WeightsAndBiasesCallback(wandb_kwargs=wandb_kwargs)
-            study = obj.MyOptimizer(model)
+            study = obj.MyOptimizer(model,cfg.direction)
             study.optimize(n_trials=cfg.hypopt.n_trials, callbacks=[wandbc])
             best_param = study.best_params()
             best_model = model.best_model(best_param)
@@ -111,10 +113,10 @@ def main(cfg: DictConfig) -> None:
             #base_preds_train[:, i] = cross_val_predict(model, X_train, y_train, cv=kfold, method='predict_proba')[:, 1]
             #base_preds_test[:, i] = best_model.predict(X_test)[:, 1]
             log.info(f"{name} Parameters: {best_param}")
-            os.makedirs(f"{model_dir}/models_{timestamp}" , exist_ok=True)
-            param_path = os.path.join(model_dir, f'models_{timestamp}/{name}_param.pkl')
+            os.makedirs(f"{model_dir}/{cfg.competition_name}/models_{timestamp}" , exist_ok=True)
+            param_path = os.path.join(model_dir, f'{cfg.competition_name}/models_{timestamp}/{name}_param.pkl')
             joblib.dump(best_param, param_path)
-            model_path = os.path.join(model_dir, f'models_{timestamp}/{name}_model.pkl')
+            model_path = os.path.join(model_dir, f'{cfg.competition_name}/models_{timestamp}/{name}_model.pkl')
             joblib.dump(best_model, model_path)
     else:
         # Dictionary containing classification and regression models
@@ -128,8 +130,8 @@ def main(cfg: DictConfig) -> None:
         for i, (name, model) in enumerate(models.items()):
             X_train, X_test, y_train, y_test = train_test_split(X_train, y_train, test_size=cfg.preprocessing.test_size, random_state=cfg.random_state)
             model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
-            os.makedirs(f"{model_dir}/models_{timestamp}" , exist_ok=True)
-            model_path = os.path.join(model_dir, f'models_{timestamp}/{name}_model.pkl')
+            os.makedirs(f"{model_dir}/{cfg.competition_name}/models_{timestamp}" , exist_ok=True)
+            model_path = os.path.join(model_dir, f'{cfg.competition_name}/models_{timestamp}/{name}_model.pkl')
             joblib.dump(model, model_path)
         
 

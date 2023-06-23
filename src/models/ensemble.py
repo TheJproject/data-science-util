@@ -11,6 +11,7 @@ import pyarrow.feather as feather
 import objectives as obj
 import pickle
 from sklearn.linear_model import LogisticRegression
+from itertools import chain, combinations
 
 from sklearn.model_selection import train_test_split,cross_val_predict,cross_val_score
 from sklearn.metrics import accuracy_score, make_scorer, log_loss, mean_absolute_error, get_scorer
@@ -19,19 +20,33 @@ from sklearn.ensemble import StackingClassifier,VotingClassifier,VotingRegressor
 from omegaconf import DictConfig
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import SCORERS
+from sklearn.base import BaseEstimator, ClassifierMixin, clone
 
 log = logging.getLogger(__name__)
-wandb.init()
+#wandb.init()
+
+class EnsembleModel(BaseEstimator, ClassifierMixin):
+    def __init__(self, models):
+        self.models = models
+
+    def predict_proba(self, X):
+        # Calculate the ensemble prediction
+        return np.mean([model.predict_proba(X) for model in self.models], axis=0)
+
+    def predict(self, X):
+        # The predicted class will be the one with highest average probability
+        return np.argmax(self.predict_proba(X), axis=1)
 
 @hydra.main(config_path="../..",config_name="config")
 def main(cfg: DictConfig) -> None:
     working_dir = os.getcwd()
     data_dir = hydra.utils.to_absolute_path(cfg.data_dir)
-    data_path = os.path.join(data_dir, 'processed/data.feather')
+    data_path = os.path.join(data_dir, f'processed/{cfg.competition_name}/data.feather')
 
-    train_prepared_path = os.path.join(data_dir, 'processed/train_prepared.feather')
+    train_prepared_path = os.path.join(data_dir, f'processed/{cfg.competition_name}/train_prepared.feather')
     train_df_prepared = feather.read_feather(train_prepared_path)
-    test_holdout_path = os.path.join(data_dir, 'processed/test_holdout_prepared.feather')
+    test_holdout_path = os.path.join(data_dir, f'processed/{cfg.competition_name}/test_holdout_prepared.feather')
     test_df_prepared = feather.read_feather(test_holdout_path)
     model_dir = hydra.utils.to_absolute_path(cfg.model_dir)
 
@@ -49,34 +64,67 @@ def main(cfg: DictConfig) -> None:
 
     print(X_train.info())
 
+
     base_estimators = []
-    
     for name in cfg.ensemble_list:
-        param_path = os.path.join(model_dir, f'models_{cfg.selected_model}/{name}_param.pkl')
-        best_param = joblib.load(param_path)
-        model_path = os.path.join(model_dir, f'models_{cfg.selected_model}/{name}_model.pkl')
-        best_model = joblib.load(model_path)
-        base_estimators.append((name, best_model))
+            model_path = os.path.join(model_dir, f'{cfg.competition_name}/models_{cfg.selected_model}/{name}_model.pkl')
+            model = joblib.load(model_path)
+            base_estimators.append((name, model))
 
-    # Define the meta-classifier
-    meta_classifier = LogisticRegression()
-
-    # Create the stacking classifier
-    stacking_classifier = VotingRegressor(estimators=base_estimators)#, voting='soft')#final_estimator=meta_classifier, verbose=1)
-
-    # Train the stacking classifier
-    stacking_classifier.fit(X_train, y_train)
-    model_path = os.path.join(model_dir, f'models_{cfg.selected_model}/stacking_model.pkl')
-    joblib.dump(stacking_classifier, model_path)
-
-    # Test the stacking classifier
-    if cfg.metric == 'rmse':
-        scorer = make_scorer(obj.root_mean_squared_error, greater_is_better=False)
+    # Metric handling
+    if cfg.metric in SCORERS:
+        metric = SCORERS[cfg.metric]._score_func
+    elif cfg.metric in globals() and callable(globals()[cfg.metric]):
+        metric = globals()[cfg.metric]
     else:
-        scorer = get_scorer(cfg.metric)
-    score = scorer(stacking_classifier, X_test, y_test)
-    accuracy = stacking_classifier.score(X_test, y_test)
-    print(f'Stacking classifier accuracy: {score}')
+        raise ValueError(f"Unsupported metric: {cfg.metric}")
+
+
+    # Placeholder for results
+    all_res = {}
+    best_score = np.inf  # Assuming the lower score is better
+    best_estimators = None
+
+    def powerset(iterable):
+        # This function returns all subsets of a set (including the empty set and the set itself)
+        s = list(iterable)
+        return chain.from_iterable(combinations(s, r) for r in range(len(s)+1))
+
+
+    # Iterate over each possible combination of models
+    for subset in powerset(base_estimators):
+        if len(subset) == 0:
+            continue
+
+        # Name of the current ensemble
+        names = [model[0] for model in subset]
+        name_combo = "+".join(names)
+        
+        # Get the ensemble prediction
+        y_pred_combo = np.mean([model[1].predict_proba(X_test)[:, 1] for model in subset], axis=0)
+
+        # Compute score
+        score = round(metric(y_test, y_pred_combo), 5)
+
+        # Store the results
+        all_res[name_combo] = score
+
+        # Check if it's the best score
+        if score < best_score:
+            best_score = score
+            best_estimators = subset
+
+        # Log the results
+        log.info(f'Ensemble: {name_combo}, Score: {score}')
+
+    # Log the best result
+    log.info(f'Best ensemble: {[model[0] for model in best_estimators]}, Score: {best_score}')
+
+    best_ensemble = EnsembleModel([model[1] for model in best_estimators])
+
+
+    model_path = os.path.join(model_dir, f'{cfg.competition_name}/models_{cfg.selected_model}/stacking_model.pkl')
+    joblib.dump(best_ensemble, model_path)
 
     
 
