@@ -111,19 +111,23 @@ def main(cfg: DictConfig) -> None:
                             raise ValueError('Problem_type should be either regression or classification. Check the value in the config file')
 
                         auto_feature_transformer = AutoFeatureTransform(model=model, problem_type=cfg.problem_type, new_feature_count=cfg.new_feature_count)
+                        numerical_list.append(('shape before auto', ShapePrinter()))
                         numerical_list.append(("auto_feature", auto_feature_transformer))
+                        numerical_list.append(('shape after auto', ShapePrinter()))
                     else:
                         numerical_list.append((name, FunctionTransformer(FEATURES_MAPPING[name])))
                 # Check if scaler is required
                 if name == 'scaler':
-                    numerical_list.append(("scaler", StandardScaler().set_output(transform='pandas')))
-                    numerical_list.append(("shape_printer", ShapePrinter()))
+                    numerical_list.append(('shape before scaler', ShapePrinter()))
+                    numerical_list.append(("scaler", StandardScaler()))
+                    numerical_list.append(('shape after scaler', ShapePrinter()))
+                    
 
             numerical_pipe = Pipeline(steps=numerical_list)
             transformers.append(('numeric', numerical_pipe, numerical_columns))
 
         if len(categorical_columns) > 0:
-            category_list = [("Cat Imputer", SimpleImputer(strategy='most_frequent')), ("one-hot-ecoding", SimpleOneHotEncoder(all_data=df_features))]
+            category_list = [("Cat Imputer", SimpleImputer(strategy='most_frequent')),('shape before onehot', ShapePrinter()), ("one-hot-ecoding", SimpleOneHotEncoder(all_data=df_features)),('shape after onehot', ShapePrinter())]
             categorical_pipe = Pipeline(steps=category_list)
             transformers.append(('categorical', categorical_pipe, categorical_columns))
 
@@ -134,7 +138,7 @@ def main(cfg: DictConfig) -> None:
         categorical_pipe = Pipeline(steps=category_list)
         print(numerical_pipe)
         print(categorical_pipe)
-        preprocessor = ColumnTransformer(transformers=transformers, verbose_feature_names_out=True)
+        preprocessor = ColumnTransformer(transformers=transformers, verbose_feature_names_out=True, remainder='passthrough')
 
         print(preprocessor)
     else:
@@ -185,8 +189,6 @@ def main(cfg: DictConfig) -> None:
     os.makedirs(holdout_dir, exist_ok=True)
     holdout_path = os.path.join(data_dir, f'processed/{cfg.competition_name}/train_prepared.feather')
     X_train_engineered[target_column] = y_train.values
-    print("X train engineered BEFORE ERROR :" )
-    print(X_train_engineered.info())
     X_train_engineered.reset_index(drop=True).to_feather(holdout_path)
     holdout_path = os.path.join(data_dir, f'processed/{cfg.competition_name}/train_prepared.csv')
     X_train_engineered.reset_index(drop=True).to_csv(holdout_path)

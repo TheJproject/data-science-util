@@ -52,10 +52,10 @@ class SimpleOneHotEncoder(BaseEstimator, TransformerMixin):
     def transform(self, X):
         # Convert X to a DataFrame if it isn't one already
         if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X, columns=self.categorical_columns)
+            X = pd.DataFrame(X)
             
         X = X.fillna('nan')
-        print("Head of X: " + str(X.head()))
+        
         # Transform the data
         X_encoded_np = self.onehot_encoder.transform(X[self.categorical_columns])
 
@@ -87,13 +87,14 @@ class SimpleOneHotEncoder(BaseEstimator, TransformerMixin):
 
 
 
+
 class AutoFeatureTransform(BaseEstimator, TransformerMixin):
     def __init__(self, model, problem_type, new_feature_count):
         self.model = model
         self.problem_type = problem_type
         self.new_feature_count = new_feature_count
         self.indices = None
-        self.poly = PolynomialFeatures(2, interaction_only=False, include_bias=False)
+        self.poly = PolynomialFeatures(2, interaction_only=True, include_bias=False)
         self.input_feature_names_ = None
         self.imputer = SimpleImputer(strategy='mean') # add imputer here
 
@@ -102,32 +103,22 @@ class AutoFeatureTransform(BaseEstimator, TransformerMixin):
             X = pd.DataFrame(X)
         print(X.columns.tolist())
         # add imputation for missing values
-        X_imputed = self.imputer.fit_transform(X)   
+        X_imputed = self.imputer.fit_transform(X)
 
         # Store original feature names
         self.input_feature_names_ = X.columns.tolist()
 
-        new_features = self._generate_features(X_imputed, fit=True)
-        
-        # Fit the model
-        self.model.fit(new_features, y)
-
-        # Turn off feature_names_in_
-        self.model.feature_names_in_ = None
-
-        # Conduct permutation importance
-        result = permutation_importance(self.model, new_features, y, n_repeats=2, random_state=0)
+        new_data = self._generate_features(X_imputed, fit=True)
+        self.model.fit(new_data, y)
+        result = permutation_importance(self.model, new_data, y, n_repeats=2, random_state=0)
 
         # make sure the new_feature_count doesn't exceed the number of generated features
         self.new_feature_count = min(self.new_feature_count, len(result.importances_mean))
 
         self.indices = result.importances_mean.argsort()[::-1][:self.new_feature_count]
-        self.column_names_ = new_features.columns[self.indices].tolist()
+        self.column_names_ = new_data.columns[self.indices].tolist()
         print("Column names: " + str(self.column_names_))
-        
         return self
-
-
 
     def _generate_features(self, X, fit=False):
         if fit:
@@ -138,10 +129,7 @@ class AutoFeatureTransform(BaseEstimator, TransformerMixin):
             X_poly = self.poly.transform(X)
             new_data = pd.DataFrame(data=X_poly, columns=self.poly.get_feature_names_out(input_features=self.input_feature_names_))
 
-        # Filter out the original features from new_data, only keep the new generated features
-        new_features_only = new_data.drop(columns=self.input_feature_names_, errors='ignore')
-
-        return new_features_only
+        return new_data
 
     def transform(self, X):
         # If X is a numpy array, convert it to a DataFrame
@@ -156,25 +144,27 @@ class AutoFeatureTransform(BaseEstimator, TransformerMixin):
         if len(self.indices) > len(new_data.columns):
             raise ValueError("Indices length is greater than the number of new columns")
 
-        # Use original column names and selected new ones
-        selected_new_features = new_data[self.column_names_]
-        transformed_data = pd.concat([X, selected_new_features], axis=1)
+        selected_columns = new_data.columns[self.indices]
+        transformed_data = pd.concat([X, new_data[selected_columns]], axis=1)
+        
+        # Use original column names instead of new ones
+        transformed_data.columns = self.input_feature_names_ + selected_columns.tolist()
         print("column names end of transform: " + str(transformed_data.columns.tolist()))
+        self.column_names_ = transformed_data.columns.tolist()
         return transformed_data
 
 
     def get_feature_names_out(self, input_features=None):
         if self.column_names_ is not None:
-            return self.input_feature_names_ + self.column_names_
+            return self.column_names_
         else:
             raise AttributeError("Transformer has not been fitted yet.")
-
-
-
 
     def set_output(self, transform="passthrough"):
         self.output_transform = transform
         return self
+
+
 
 
 class ExternalFeatureTemplate(BaseEstimator, TransformerMixin):

@@ -9,7 +9,7 @@ import datetime
 import joblib
 import pyarrow.feather as feather
 import objectives as obj
-
+import objectives_NN as objNN
 from sklearn.linear_model import LogisticRegression
 
 from sklearn.model_selection import train_test_split,cross_val_predict,cross_val_score
@@ -26,14 +26,14 @@ import optuna
 from optuna.integration.wandb import WeightsAndBiasesCallback
 from presaved_param import model_dict as presaved_dict
 print(optuna.__version__)
-
+import torch
 log = logging.getLogger(__name__)
 
 
 
 @hydra.main(config_path="../..",config_name="config")
 def main(cfg: DictConfig) -> None:
-    wandb.init()
+    #wandb.init()
     wandb_kwargs = {"project": cfg.competition_name}
     working_dir = os.getcwd()
     data_dir = hydra.utils.to_absolute_path(cfg.data_dir)
@@ -74,12 +74,15 @@ def main(cfg: DictConfig) -> None:
                 "CatBoost": obj.ObjectiveCatBoost,
                 "XGBoost": obj.ObjectiveXGB,
                 "LGBM": obj.ObjectiveLGBM,
+                "NN": obj.ObjectiveNN,
+                "Autoencoder": objNN.ObjectiveAE,
             },
             "regression": {
                 "RF": obj.ObjectiveRFRegressor,
                 "CatBoost": obj.ObjectiveCatBoostRegressor,
                 "XGBoost": obj.ObjectiveXGBRegressor,
                 "LGBM": obj.ObjectiveLGBMRegressor,
+                "NN": obj.ObjectiveNNRegressor
             },
         }
 
@@ -98,7 +101,6 @@ def main(cfg: DictConfig) -> None:
             study = obj.MyOptimizer(model,cfg.direction)
             study.optimize(n_trials=cfg.hypopt.n_trials, callbacks=[wandbc])
             best_param = study.best_params()
-            best_model = model.best_model(best_param)
             print(best_param)
             print(study.best_value())
             # Generate an Optuna visualization and Log the Plotly figure to Weights & Biases
@@ -116,8 +118,21 @@ def main(cfg: DictConfig) -> None:
             os.makedirs(f"{model_dir}/{cfg.competition_name}/models_{timestamp}" , exist_ok=True)
             param_path = os.path.join(model_dir, f'{cfg.competition_name}/models_{timestamp}/{name}_param.pkl')
             joblib.dump(best_param, param_path)
-            model_path = os.path.join(model_dir, f'{cfg.competition_name}/models_{timestamp}/{name}_model.pkl')
-            joblib.dump(best_model, model_path)
+            if name == 'NN':
+            # For PyTorch Models
+                model_path = os.path.join(model_dir, f'{cfg.competition_name}/models_{timestamp}/{name}_model.pt')
+                torch.save(model.best_model, model_path)
+                        # If the model is the EncoderClassifier, get the best autoencoder and then create the classifier
+            elif name == 'Autoencoder':
+                model_path = os.path.join(model_dir, f'{cfg.competition_name}/models_{timestamp}/{name}_model.pt')
+                best_autoencoder = model.best_model
+                model = objNN.EncoderClassifier(best_autoencoder, hidden_size=best_param['hidden_size_small'], output_size=2)  # Or however many classes you have
+                torch.save(model, model_path)
+            else:
+                # For Sklearn 
+                model_path = os.path.join(model_dir, f'{cfg.competition_name}/models_{timestamp}/{name}_model.pkl')
+                best_model = model.best_model(best_param)
+                joblib.dump(best_model, model_path)
     else:
         # Dictionary containing classification and regression models
         model_dict = presaved_dict
@@ -133,7 +148,13 @@ def main(cfg: DictConfig) -> None:
             os.makedirs(f"{model_dir}/{cfg.competition_name}/models_{timestamp}" , exist_ok=True)
             model_path = os.path.join(model_dir, f'{cfg.competition_name}/models_{timestamp}/{name}_model.pkl')
             joblib.dump(model, model_path)
-        
+    print("Training finished, timecode: " + str(timestamp))
+    time_when_completed = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+    #save time difference from start to finish in log
+    time_taken = datetime.datetime.strptime(time_when_completed, '%Y-%m-%d-%H-%M-%S') - datetime.datetime.strptime(timestamp, '%Y-%m-%d-%H-%M-%S')
+    #give the time difference in minutes
+    time_taken = time_taken.total_seconds()/60
+    log.info(f"Training finished, time: {time_taken}")
 
 
 

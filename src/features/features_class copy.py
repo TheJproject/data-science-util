@@ -24,14 +24,9 @@ import pandas as pd
 import numpy as np
 import logging
 
-from sklearn.preprocessing import OneHotEncoder
-import pandas as pd
-from sklearn.base import BaseEstimator, TransformerMixin
-import numpy as np
-
 class SimpleOneHotEncoder(BaseEstimator, TransformerMixin):
     def __init__(self, all_data=None, **kwargs):
-        self.onehot_encoder = OneHotEncoder(sparse=False, handle_unknown='ignore')
+        self.log = logging.getLogger(__name__)
         self.all_data = all_data
 
     def fit(self, X, y=None):
@@ -43,36 +38,46 @@ class SimpleOneHotEncoder(BaseEstimator, TransformerMixin):
         
         # Identify the categorical columns
         self.categorical_columns = self.all_data.select_dtypes(include=['object']).columns.tolist()
-        
-        # Fit the OneHotEncoder
-        self.onehot_encoder.fit(self.all_data[self.categorical_columns])
-        self.encoded_columns = self.onehot_encoder.get_feature_names_out(self.categorical_columns)
+        print("Categorical columns >IN FIT: " + str(self.categorical_columns))
+        self.encoded_columns = pd.get_dummies(self.all_data, columns=self.categorical_columns).columns.tolist()
         return self
+
+    def _generate_features(self, X):
+        print("Generating new features...")
+        X = X.fillna('nan')
+    # Identify the categorical columns
+        self.categorical_columns = self.all_data.select_dtypes(include=['object']).columns.tolist()
+        print("Identified categorical columns during fit: ", self.categorical_columns)
+    
+        # Only encode columns present in both self.categorical_columns and X
+        columns_to_encode = list(set(self.categorical_columns) & set(X.columns))
+        X_encoded = pd.get_dummies(X, columns=columns_to_encode,dtype=float)
+        print("Categorical columns >IN GENERATE FEATURES: " + str(X_encoded))
+
+
+
+
+        #X_encoded = X_encoded[self.encoded_columns]
+        print("ENCODED COLUMNS: " + str(self.encoded_columns))
+        print("Type X-encoded :" + str(type(X_encoded)))
+        return X_encoded
+
+
 
     def transform(self, X):
         # Convert X to a DataFrame if it isn't one already
         if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X, columns=self.categorical_columns)
-            
-        X = X.fillna('nan')
-        print("Head of X: " + str(X.head()))
-        # Transform the data
-        X_encoded_np = self.onehot_encoder.transform(X[self.categorical_columns])
-
-        # Convert numpy array to DataFrame
-        X_encoded_df = pd.DataFrame(X_encoded_np, columns=self.encoded_columns)
-        
-        # Concatenate the non-categorical and encoded categorical data
-        non_categorical_data = X.drop(columns=self.categorical_columns)
-        new_data = pd.concat([non_categorical_data, X_encoded_df], axis=1)
-        
+            X = pd.DataFrame(X)
+        new_data = self._generate_features(X)
         print("Head of new data: " + str(new_data.head()))
         print("Head of X: " + str(X.head()))
         print("Shape of new data: " + str(new_data.shape))
         print("Shape of X: " + str(X.shape))
+        print("Categorical columns >IN TRANSFORM: " + str(new_data.columns.tolist()))
         
         return new_data
     
+
     def get_transformed_columns(self):
         return self.encoded_columns
 
@@ -138,10 +143,7 @@ class AutoFeatureTransform(BaseEstimator, TransformerMixin):
             X_poly = self.poly.transform(X)
             new_data = pd.DataFrame(data=X_poly, columns=self.poly.get_feature_names_out(input_features=self.input_feature_names_))
 
-        # Filter out the original features from new_data, only keep the new generated features
-        new_features_only = new_data.drop(columns=self.input_feature_names_, errors='ignore')
-
-        return new_features_only
+        return new_data
 
     def transform(self, X):
         # If X is a numpy array, convert it to a DataFrame
@@ -175,6 +177,8 @@ class AutoFeatureTransform(BaseEstimator, TransformerMixin):
     def set_output(self, transform="passthrough"):
         self.output_transform = transform
         return self
+
+
 
 
 class ExternalFeatureTemplate(BaseEstimator, TransformerMixin):

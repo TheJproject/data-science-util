@@ -7,7 +7,8 @@ import lightgbm as lgb
 
 param_rf_cla = {'n_estimators': 100, 'max_depth': 5}
 param_catboost_cla = {'depth': 7, 'learning_rate': 0.1}
-param_xgb_cla = {'n_estimators': 100, 'max_depth': 5}
+param_xgb_cla = {'eta': 0.09997487669624248, 'max_depth': 9, 'subsample': 0.4503180982597529, 'colsample_bytree': 0.28852184628909433, 'gamma': 0.048619898711735665, 'alpha': 1.037873925072671, 'lambda': 
+2.2991082165191634, 'min_child_weight': 18} #{'n_estimators': 100, 'max_depth': 5}
 param_lgbm_cla = {'n_estimators': 100, 'max_depth': 5}
 
 param_rf_reg = {'n_estimators': 100, 'max_depth': 5}

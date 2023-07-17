@@ -1,17 +1,19 @@
 #config.yaml
-competition_name: 'tabular_vector_borne_disease'
+competition_name: 'playground-series-s3e13'
 problem_type: 'classification'
-metric: 'custom'
+metric: 'mapk'
+direction: 'maximize'
 target_col: 'prognosis'
 
 preprocessing:
   imputer:
   test_size: 0.2
-  nsplit: 10
+  nsplit: 5
+  drop_columns: ['id'] #None if no column dropped
 
-ensemble_list: ['XGBoost'] #,'LGBM','RF', 'CatBoost']
+ensemble_list: ['LGBM'] #,'XGBoost','RF', 'CatBoost']
 
-OPTUNA: False
+OPTUNA: True
 
 retrain: True
 
@@ -21,10 +23,11 @@ hypopt:
 NAS: False
 
 features:
-  no_feature: False
+  no_feature: True
   custom_feature: False
-  auto_feature: True
+  auto_feature: False
   ext_feature: False
+  pca_feature: False
   scaler: False
 
 random_state: 42

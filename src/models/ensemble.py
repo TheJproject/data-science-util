@@ -22,21 +22,30 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import SCORERS
 from sklearn.base import BaseEstimator, ClassifierMixin, clone
+import torch
+import objectives as obj
 
 log = logging.getLogger(__name__)
 #wandb.init()
 
 class EnsembleModel(BaseEstimator, ClassifierMixin):
-    def __init__(self, models):
+    def __init__(self, models, is_pytorch):
         self.models = models
+        self.is_pytorch = is_pytorch
 
     def predict_proba(self, X):
         # Calculate the ensemble prediction
-        return np.mean([model.predict_proba(X) for model in self.models], axis=0)
+        predictions = []
+        for model, is_pytorch in zip(self.models, self.is_pytorch):
+            if is_pytorch:
+                X_tensor = torch.tensor(X.values, dtype=torch.float32)
+                with torch.no_grad():
+                    prediction = model(X_tensor).numpy()
+            else:
+                prediction = model.predict_proba(X)
+            predictions.append(prediction)
 
-    def predict(self, X):
-        # The predicted class will be the one with highest average probability
-        return np.argmax(self.predict_proba(X), axis=1)
+        return np.mean(predictions, axis=0)
 
 @hydra.main(config_path="../..",config_name="config")
 def main(cfg: DictConfig) -> None:
@@ -67,9 +76,16 @@ def main(cfg: DictConfig) -> None:
 
     base_estimators = []
     for name in cfg.ensemble_list:
+        if name == 'NN' or name == 'Autoencoder':
+            model_path = os.path.join(model_dir, f'{cfg.competition_name}/models_{cfg.selected_model}/{name}_model.pt')
+            model = torch.load(model_path)
+            base_estimators.append((name, model, True))
+        else:
             model_path = os.path.join(model_dir, f'{cfg.competition_name}/models_{cfg.selected_model}/{name}_model.pkl')
             model = joblib.load(model_path)
-            base_estimators.append((name, model))
+            base_estimators.append((name, model, False))
+
+
 
     # Metric handling
     if cfg.metric in SCORERS:
@@ -82,8 +98,13 @@ def main(cfg: DictConfig) -> None:
 
     # Placeholder for results
     all_res = {}
-    best_score = np.inf  # Assuming the lower score is better
     best_estimators = None
+    if cfg.direction == 'minimize':
+        best_score = np.inf  # lower is better
+    elif cfg.direction == 'maximize':
+        best_score = -np.inf  # higher is better
+    else:
+        raise ValueError(f"Unsupported direction: {cfg.direction}, choose either 'minimize' or 'maximize'")
 
     def powerset(iterable):
         # This function returns all subsets of a set (including the empty set and the set itself)
@@ -101,7 +122,26 @@ def main(cfg: DictConfig) -> None:
         name_combo = "+".join(names)
         
         # Get the ensemble prediction
-        y_pred_combo = np.mean([model[1].predict_proba(X_test)[:, 1] for model in subset], axis=0)
+        predictions = []
+
+        for model in subset:
+            name, estimator, is_pytorch = model  # Unpack the tuple
+            if is_pytorch:  # Check if the model is a PyTorch model
+                # PyTorch model
+                X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
+                with torch.no_grad():
+                    output = estimator.forward(X_test_tensor)
+                    softmax_output = torch.nn.functional.softmax(output, dim=1)
+                    prediction = softmax_output.detach().numpy()[:, 1]
+            else:
+                # Scikit-learn model (including XGBClassifier)
+                prediction = estimator.predict_proba(X_test)[:, 1]
+            predictions.append(prediction)
+
+
+
+        y_pred_combo = np.mean(predictions, axis=0)
+
 
         # Compute score
         score = round(metric(y_test, y_pred_combo), 5)
@@ -110,9 +150,10 @@ def main(cfg: DictConfig) -> None:
         all_res[name_combo] = score
 
         # Check if it's the best score
-        if score < best_score:
+        if (cfg.direction == 'minimize' and score < best_score) or (cfg.direction == 'maximize' and score > best_score):
             best_score = score
             best_estimators = subset
+
 
         # Log the results
         log.info(f'Ensemble: {name_combo}, Score: {score}')
@@ -120,7 +161,7 @@ def main(cfg: DictConfig) -> None:
     # Log the best result
     log.info(f'Best ensemble: {[model[0] for model in best_estimators]}, Score: {best_score}')
 
-    best_ensemble = EnsembleModel([model[1] for model in best_estimators])
+    best_ensemble = EnsembleModel([model[1] for model in best_estimators], [model[2] for model in best_estimators])
 
 
     model_path = os.path.join(model_dir, f'{cfg.competition_name}/models_{cfg.selected_model}/stacking_model.pkl')
