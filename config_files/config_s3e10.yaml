@@ -4,6 +4,7 @@ problem_type: 'classification'
 metric: 'neg_log_loss'
 direction: 'maximize'
 target_col: 'Class'
+predictions_format: 'proba'
 
 preprocessing:
   imputer:
@@ -30,10 +31,10 @@ features:
   pca_feature: False
   scaler: True
 
-new_feature_count: 5 #only if auto_feature is True
+new_feature_count: 3 #only if auto_feature is True
 
 random_state: 42
-selected_model: '2023-07-15-12-05-50' #modify after running make train
+selected_model: '2023-07-22-12-06-27' #modify after running make train
 data_dir: 'data/'
 model_dir: 'models/'
 input_filepath: 

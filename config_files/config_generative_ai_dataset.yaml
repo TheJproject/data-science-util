@@ -1,18 +1,18 @@
 #config.yaml
-competition_name: 'playground-series-s3e12'
+competition_name: 'generative_ai_dataset'
 problem_type: 'classification'
-metric: 'roc_auc'
+metric: 'f1'
 direction: 'maximize'
-target_col: 'target'
-predictions_format: 'proba'
+target_col: 'labels'
+predictions_format: 'class'
 
 preprocessing:
   imputer:
   test_size: 0.2
   nsplit: 5
-  drop_columns:  #None if no column dropped
+  drop_columns : []
 
-ensemble_list: ['Autoencoder', 'NN','LGBM','XGBoost','RF','CatBoost']
+ensemble_list: ['XGBoost', 'NN', 'Autoencoder','RF', 'CatBoost','LGBM']
 
 OPTUNA: True
 
@@ -26,15 +26,15 @@ NAS: False
 features:
   no_feature: False
   custom_feature: False
-  auto_feature: True
+  auto_feature: False
   ext_feature: False
   pca_feature: False
   scaler: True
 
-new_feature_count: 3 #only if auto_feature is True
+new_feature_count: 5 #only if auto_feature is True
 
 random_state: 42
-selected_model: '2023-07-22-16-27-56' #modify after running make train
+selected_model: '2023-07-18-16-03-33' #modify after running make train
 data_dir: 'data/'
 model_dir: 'models/'
 input_filepath: 

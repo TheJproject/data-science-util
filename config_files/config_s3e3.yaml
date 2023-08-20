@@ -1,9 +1,9 @@
 #config.yaml
-competition_name: 'playground-series-s3e12'
+competition_name: 'playground-series-s3e3'
 problem_type: 'classification'
 metric: 'roc_auc'
 direction: 'maximize'
-target_col: 'target'
+target_col: 'Attrition'
 predictions_format: 'proba'
 
 preprocessing:
@@ -34,7 +34,7 @@ features:
 new_feature_count: 3 #only if auto_feature is True
 
 random_state: 42
-selected_model: '2023-07-22-16-27-56' #modify after running make train
+selected_model: '2023-07-21-21-49-07' #modify after running make train
 data_dir: 'data/'
 model_dir: 'models/'
 input_filepath: 

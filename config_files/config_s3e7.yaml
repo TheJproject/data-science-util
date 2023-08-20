@@ -4,6 +4,7 @@ problem_type: 'classification'
 metric: 'roc_auc'
 direction: 'maximize'
 target_col: 'booking_status'
+predictions_format: 'proba'
 
 preprocessing:
   imputer:
@@ -11,7 +12,7 @@ preprocessing:
   nsplit: 5
   drop_columns:  #None if no column dropped
 
-ensemble_list: [  'NN','LGBM','XGBoost','RF','CatBoost']
+ensemble_list:  [ 'Autoencoder', 'NN','LGBM','XGBoost','RF','CatBoost']
 
 OPTUNA: True
 
@@ -25,13 +26,15 @@ NAS: False
 features:
   no_feature: False
   custom_feature: False
-  auto_feature: False
+  auto_feature: True
   ext_feature: False
   pca_feature: False
   scaler: True
 
+new_feature_count: 3 #only if auto_feature is True
+
 random_state: 42
-selected_model: '2023-07-15-20-53-28' #modify after running make train
+selected_model: '2023-07-21-23-52-13' #modify after running make train
 data_dir: 'data/'
 model_dir: 'models/'
 input_filepath: 

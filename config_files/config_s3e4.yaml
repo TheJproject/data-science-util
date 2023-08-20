@@ -1,18 +1,18 @@
 #config.yaml
-competition_name: 'playground-series-s3e12'
+competition_name: 'playground-series-s3e4'
 problem_type: 'classification'
 metric: 'roc_auc'
 direction: 'maximize'
-target_col: 'target'
+target_col: 'Class'
 predictions_format: 'proba'
 
 preprocessing:
   imputer:
   test_size: 0.2
   nsplit: 5
-  drop_columns:  #None if no column dropped
+  drop_columns : []
 
-ensemble_list: ['Autoencoder', 'NN','LGBM','XGBoost','RF','CatBoost']
+ensemble_list: ['XGBoost', 'NN', 'Autoencoder','RF', 'CatBoost','LGBM']
 
 OPTUNA: True
 
@@ -34,7 +34,7 @@ features:
 new_feature_count: 3 #only if auto_feature is True
 
 random_state: 42
-selected_model: '2023-07-22-16-27-56' #modify after running make train
+selected_model: '2023-07-22-02-12-35' #modify after running make train
 data_dir: 'data/'
 model_dir: 'models/'
 input_filepath: 
